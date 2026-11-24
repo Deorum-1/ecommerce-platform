@@ -21,8 +21,9 @@
 
 ## Code Status
 - Monorepo foundation created
-- Workspace directories created for apps and shared packages
-- Apps and packages are not yet scaffolded with framework code
+- Next.js 15 storefront and admin apps scaffolded
+- NestJS 11 API scaffolded
+- Shared package entries created for database, UI, types, config, and utils
 
 ## Next Recommended Action
-Start Phase 1 – Step 2: Scaffold the Next.js storefront/admin apps and NestJS API, then add shared tooling
+Start Phase 1 – Step 3: Configure shared TypeScript, ESLint, and Tailwind tooling
