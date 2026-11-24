@@ -24,6 +24,8 @@
 - Next.js 15 storefront and admin apps scaffolded
 - NestJS 11 API scaffolded
 - Shared package entries created for database, UI, types, config, and utils
+- Phase 1 completed: Docker Compose for local PostgreSQL and Redis; Prisma initialized with the Tenant model
+- TypeScript and ESLint configured per app; Tailwind CSS configured for both Next.js apps; Prettier configured at the workspace root
 
 ## Next Recommended Action
-Start Phase 1 – Step 3: Configure shared TypeScript, ESLint, and Tailwind tooling
+Start Phase 2 – Step 2.1: Configure NestJS modules, application configuration, validation, and logging

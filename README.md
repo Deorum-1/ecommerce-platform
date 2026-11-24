@@ -57,8 +57,20 @@ ecommerce-platform/
 
 ## Current Status
 
-**Phase**: Documentation complete → Ready to start coding Phase 1  
-**Next Step**: Create monorepo foundation (root configs + apps + packages)
+**Phase**: Phase 1 foundation
+**Next Step**: Begin Phase 2 backend foundation; see `context/06-CURRENT-STATUS.md`
+
+### Local infrastructure
+
+Start the local PostgreSQL and Redis services with `docker compose up -d`.
+Copy `.env.example` to `.env` and use the local database and Redis URLs shown
+there when developing against Docker. Then generate the Prisma client and apply
+the initial migration:
+
+```bash
+pnpm --filter @repo/database run db:generate
+pnpm --filter @repo/database run db:migrate
+```
 
 ---
 
