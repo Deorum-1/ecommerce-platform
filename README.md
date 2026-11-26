@@ -10,18 +10,20 @@ Shopping companies can register, get their own admin dashboard + storefront, upl
 This project is designed to be built **step by step with AI assistance**.
 
 ### 1. Always start here
+
 Read the files inside the `context/` folder **in order**:
 
-| File | Purpose |
-|------|---------|
-| `context/01-OVERVIEW.md` | What we are building and why |
-| `context/02-TECH-STACK.md` | Locked technology decisions |
-| `context/03-PHASES.md` | Phase 1 vs Phase 2 scope |
-| `context/04-PRICING.md` | Pricing model |
-| `context/05-FEATURES.md` | Feature priorities |
+| File                           | Purpose                      |
+| ------------------------------ | ---------------------------- |
+| `context/01-OVERVIEW.md`       | What we are building and why |
+| `context/02-TECH-STACK.md`     | Locked technology decisions  |
+| `context/03-PHASES.md`         | Phase 1 vs Phase 2 scope     |
+| `context/04-PRICING.md`        | Pricing model                |
+| `context/05-FEATURES.md`       | Feature priorities           |
 | `context/06-CURRENT-STATUS.md` | Current state of the project |
 
 ### 2. Detailed Documents
+
 - [Full Pricing Strategy](./docs/PRICING_STRATEGY.md)
 - [Detailed Phases & Steps](./docs/PHASES.md)
 - [Original Step-by-Step Guide](./docs/STEP_BY_STEP.md)
@@ -60,17 +62,35 @@ ecommerce-platform/
 **Phase**: Phase 1 foundation
 **Next Step**: Begin Phase 2 backend foundation; see `context/06-CURRENT-STATUS.md`
 
-### Local infrastructure
+### Database and Redis
 
-Start the local PostgreSQL and Redis services with `docker compose up -d`.
-Copy `.env.example` to `.env` and use the local database and Redis URLs shown
-there when developing against Docker. Then generate the Prisma client and apply
-the initial migration:
+Copy `.env.example` to `.env` and set `DATABASE_URL` to Neon's pooled
+connection string and `DIRECT_URL` to its direct connection string. Prisma
+uses the direct connection for migrations. Set `UPSTASH_REDIS_REST_URL` and
+`UPSTASH_REDIS_REST_TOKEN` from Upstash for API cache access.
+
+For local development without cloud accounts, start the services with
+`docker compose up -d` and set `DATABASE_URL` and `DIRECT_URL` to the Docker
+PostgreSQL URL examples in `.env.example`. The API can start without Upstash
+credentials; Redis operations require the Upstash REST variables.
+Generate the Prisma client and apply the initial migration:
 
 ```bash
 pnpm --filter @repo/database run db:generate
 pnpm --filter @repo/database run db:migrate
 ```
+
+### Authentication and staff access
+
+Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` in `.env`, then
+enable Organizations in the Clerk Dashboard. The admin app uses Clerk for
+sign-up, login, and logout. Company registration creates a Clerk organization
+and a matching tenant; the registering user becomes its owner. Owners can
+invite staff from the dashboard. The default Clerk roles `org:admin` (owner)
+and `org:member` (staff) are used for server-side authorization.
+
+The API verifies Clerk bearer tokens and maps the token's active organization
+to a tenant. Tenant identity is never accepted from a request header.
 
 ---
 

@@ -1,103 +1,67 @@
-import Image from "next/image";
+import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main className="relative min-h-screen overflow-hidden bg-[#f7f8fc]">
+      <div className="absolute left-[58%] top-[-260px] h-[620px] w-[620px] rounded-full bg-indigo-100/70 blur-3xl" />
+      <div className="absolute bottom-[-300px] right-[-100px] h-[520px] w-[520px] rounded-full bg-violet-100/60 blur-3xl" />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <nav className="relative mx-auto flex max-w-7xl items-center justify-between px-6 py-6 lg:px-10">
+        <Link className="flex items-center gap-3 font-semibold text-slate-950" href="/">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#5b5ce2] text-white shadow-[0_8px_24px_rgba(91,92,226,.28)]">S</span>
+          <span>Store Admin</span>
+        </Link>
+        <Link className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:border-slate-300" href="/sign-in">
+          Sign in
+        </Link>
+      </nav>
+
+      <div className="relative mx-auto grid min-h-[calc(100vh-88px)] max-w-7xl items-center gap-12 px-6 pb-16 lg:grid-cols-[1fr_.86fr] lg:px-10">
+        <section>
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            Built for growing teams
+          </div>
+          <h1 className="max-w-2xl text-5xl font-semibold leading-[1.05] tracking-tight text-slate-950 sm:text-6xl">
+            Run your store with clarity.
+          </h1>
+          <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
+            Manage your company, bring in your team, and keep every part of your ecommerce business moving from one calm workspace.
+          </p>
+          <div className="mt-9 flex flex-wrap gap-3">
+            <Link className="rounded-xl bg-[#5b5ce2] px-5 py-3.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(91,92,226,.28)] hover:bg-[#4546bb]" href="/sign-up">
+              Create an account
+            </Link>
+            <Link className="rounded-xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-700 shadow-sm hover:border-slate-300" href="/sign-in">
+              Open dashboard
+            </Link>
+          </div>
+        </section>
+
+        <div className="relative hidden lg:block">
+          <div className="rotate-[-2deg] rounded-[28px] border border-white/80 bg-white p-3 shadow-[0_30px_80px_rgba(39,46,89,.16)]">
+            <div className="rounded-[20px] bg-[#eef1f7] p-5">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-slate-500">Overview</p>
+                  <p className="mt-1 font-semibold text-slate-900">This month</p>
+                </div>
+                <div className="h-9 w-9 rounded-full bg-[#dfe1ff]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-white p-4"><p className="text-xs text-slate-500">Revenue</p><p className="mt-3 text-2xl font-semibold text-slate-900">$24.8k</p></div>
+                <div className="rounded-2xl bg-white p-4"><p className="text-xs text-slate-500">Orders</p><p className="mt-3 text-2xl font-semibold text-slate-900">1,240</p></div>
+              </div>
+              <div className="mt-3 rounded-2xl bg-[#172033] p-5 text-white">
+                <div className="flex items-end justify-between"><p className="text-sm text-slate-300">Store growth</p><p className="text-sm font-semibold">+18.4%</p></div>
+                <div className="mt-8 flex h-24 items-end gap-2">
+                  {[35,48,42,65,58,78,72,92].map((height, index) => <div key={index} className="flex-1 rounded-t-md bg-indigo-300" style={{ height: `${height}%`, opacity: .45 + index * .07 }} />)}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
+    </main>
   );
 }
