@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -101,13 +103,6 @@ export class CatalogController {
     return this.catalog.createImageUploadSignature(request.tenantId!);
   }
 
-  @Post('sample-data')
-  @UseGuards(RolesGuard)
-  @Roles('org:admin')
-  seedSampleData(@Req() request: TenantRequest) {
-    return this.catalog.seedSampleData(request.tenantId!);
-  }
-
   @Patch('products/:productId')
   @UseGuards(RolesGuard)
   @Roles('org:admin')
@@ -120,6 +115,7 @@ export class CatalogController {
   }
 
   @Delete('products/:productId')
+  @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(RolesGuard)
   @Roles('org:admin')
   deleteProduct(

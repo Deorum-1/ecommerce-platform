@@ -7,7 +7,7 @@ import { ClerkModule } from './clerk/clerk.module';
 import { DatabaseModule } from './database/database.module';
 import { RedisModule } from './redis/redis.module';
 import { TenancyModule } from './tenancy/tenancy.module';
-import { TenantInvitationsModule } from './tenancy/tenant-invitations.module';
+import { TenantMembersModule } from './tenancy/tenant-members.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { OrdersModule } from './orders/orders.module';
 import { AdminModule } from './admin/admin.module';
@@ -23,7 +23,7 @@ import { AdminModule } from './admin/admin.module';
     DatabaseModule,
     RedisModule,
     TenancyModule,
-    TenantInvitationsModule,
+    TenantMembersModule,
     CatalogModule,
     OrdersModule,
     AdminModule,

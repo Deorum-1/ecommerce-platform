@@ -56,7 +56,6 @@ describe('AuthService', () => {
 
     expect(createOrganization).toHaveBeenCalledWith({
       name: 'Acme Shop',
-      slug: 'acme-shop',
       createdBy: 'user-123',
     });
     expect(createTenant).toHaveBeenCalledWith({

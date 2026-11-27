@@ -54,4 +54,58 @@ describe('ClerkAuthGuard', () => {
       guard.canActivate(executionContext('Bearer expired-token')),
     ).rejects.toThrow(UnauthorizedException);
   });
+
+  it('accepts verified Clerk claims and attaches the user to the request', async () => {
+    mockedVerifyToken.mockResolvedValue({
+      __raw: 'valid-token',
+      exp: 9999999999,
+      iat: 1,
+      iss: 'https://test.clerk.accounts.dev',
+      jti: 'jwt_123',
+      nbf: 1,
+      sid: 'sess_123',
+      sub: 'user_123',
+      org_id: 'org_123',
+      org_role: 'org:admin',
+    });
+    const request: Pick<TenantRequest, 'headers' | 'user'> = {
+      headers: { authorization: 'Bearer valid-token' },
+    };
+
+    await expect(
+      guard.canActivate(new ExecutionContextHost([request])),
+    ).resolves.toBe(true);
+    expect(request.user).toEqual({
+      userId: 'user_123',
+      organizationId: 'org_123',
+      organizationRole: 'org:admin',
+    });
+  });
+
+  it('accepts compact organization claims from current Clerk session tokens', async () => {
+    mockedVerifyToken.mockResolvedValue({
+      __raw: 'valid-token',
+      exp: 9999999999,
+      iat: 1,
+      iss: 'https://test.clerk.accounts.dev',
+      jti: 'jwt_123',
+      nbf: 1,
+      sid: 'sess_123',
+      sub: 'user_123',
+      v: 2,
+      o: { id: 'org_123', rol: 'admin', slg: 'acme' },
+    });
+    const request: Pick<TenantRequest, 'headers' | 'user'> = {
+      headers: { authorization: 'Bearer valid-token' },
+    };
+
+    await expect(
+      guard.canActivate(new ExecutionContextHost([request])),
+    ).resolves.toBe(true);
+    expect(request.user).toEqual({
+      userId: 'user_123',
+      organizationId: 'org_123',
+      organizationRole: 'org:admin',
+    });
+  });
 });

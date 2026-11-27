@@ -34,7 +34,6 @@ export class AuthService {
     const organization =
       await this.clerk.client.organizations.createOrganization({
         name: companyName,
-        slug,
         createdBy: userId,
       });
 

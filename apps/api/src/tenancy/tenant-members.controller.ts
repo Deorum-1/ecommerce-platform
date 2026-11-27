@@ -11,18 +11,18 @@ import { Roles } from './roles.decorator';
 import { RolesGuard } from './roles.guard';
 import { TenantGuard } from './tenant.guard';
 import type { TenantRequest } from './tenant-request.interface';
-import { CreateStaffInvitationDto } from './create-staff-invitation.dto';
-import { TenantInvitationsService } from './tenant-invitations.service';
+import { CreateStaffAccountDto } from './create-staff-account.dto';
+import { TenantMembersService } from './tenant-members.service';
 
-@Controller('tenants/invitations')
+@Controller('tenants/members')
 @UseGuards(ClerkAuthGuard, TenantGuard, RolesGuard)
-export class TenantInvitationsController {
-  constructor(private readonly invitationService: TenantInvitationsService) {}
+export class TenantMembersController {
+  constructor(private readonly members: TenantMembersService) {}
 
   @Post()
   @Roles('org:admin')
-  inviteStaff(
-    @Body() dto: CreateStaffInvitationDto,
+  createStaffAccount(
+    @Body() dto: CreateStaffAccountDto,
     @Req() request: TenantRequest,
   ) {
     const user = request.user;
@@ -30,10 +30,11 @@ export class TenantInvitationsController {
       throw new ForbiddenException('An active organization is required');
     }
 
-    return this.invitationService.inviteStaff(
+    return this.members.createStaffAccount(
       user.organizationId,
-      user.userId,
       dto.emailAddress,
+      dto.firstName,
+      dto.lastName,
     );
   }
 }

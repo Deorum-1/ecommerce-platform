@@ -20,7 +20,7 @@ export default function CreateCompanyPage() {
     setIsSubmitting(true);
 
     try {
-      const token = await getToken();
+      const token = await getToken({ skipCache: true });
       if (!token) {
         throw new Error("Your session has expired. Please sign in again.");
       }

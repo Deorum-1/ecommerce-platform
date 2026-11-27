@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAuth, useOrganization, UserButton } from "@clerk/nextjs";
+import { getErrorMessage } from "@/lib/api";
 import readXlsxFile from "read-excel-file/browser";
 import {
   ChangeEvent,
@@ -36,6 +37,7 @@ type Product = {
 };
 type ProductDraft = {
   name: string;
+  slug: string;
   description: string;
   price: string;
   currency: string;
@@ -65,12 +67,140 @@ const SAMPLE_CSV =
   "name,slug,description,price,currency,status,inventoryQuantity,category,imageUrls,variants\r\n" +
   'Everyday Tote,everyday-tote,Canvas tote bag,8500,NGN,DRAFT,24,,,"[{""name"":""Natural"",""sku"":""TOTE-NATURAL"",""inventoryQuantity"":12}]"\r\n';
 
+const IMPORT_HEADER_ALIASES: Record<string, string> = {
+  name: "name",
+  product: "name",
+  productname: "name",
+  producttitle: "name",
+  item: "name",
+  itemname: "name",
+  title: "name",
+  price: "price",
+  unitprice: "price",
+  sellingprice: "price",
+  saleprice: "price",
+  retailprice: "price",
+  regularprice: "price",
+  productprice: "price",
+  itemprice: "price",
+  amount: "price",
+  currency: "currency",
+  currencycode: "currency",
+  status: "status",
+  productstatus: "status",
+  published: "status",
+  publishedstatus: "status",
+  publicationstatus: "status",
+  availability: "status",
+  availabilitystatus: "status",
+  visibility: "status",
+  description: "description",
+  productdescription: "description",
+  details: "description",
+  slug: "slug",
+  producthandle: "slug",
+  handle: "slug",
+  category: "category",
+  categoryname: "category",
+  productcategory: "category",
+  type: "category",
+  producttype: "category",
+  inventoryquantity: "inventoryQuantity",
+  quantity: "inventoryQuantity",
+  qty: "inventoryQuantity",
+  stock: "inventoryQuantity",
+  stockquantity: "inventoryQuantity",
+  stockqty: "inventoryQuantity",
+  stocklevel: "inventoryQuantity",
+  availablestock: "inventoryQuantity",
+  availablequantity: "inventoryQuantity",
+  quantityavailable: "inventoryQuantity",
+  onhandquantity: "inventoryQuantity",
+  imageurls: "imageUrls",
+  image: "imageUrls",
+  imageurl: "imageUrls",
+  imagesrc: "imageUrls",
+  productimageurl: "imageUrls",
+  images: "imageUrls",
+  photourl: "imageUrls",
+  photos: "imageUrls",
+  variants: "variants",
+};
+
+function normalizeImportHeader(header: string): string {
+  const trimmed = header.replace(/^\uFEFF/, "").trim();
+  const key = trimmed.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return IMPORT_HEADER_ALIASES[key] || trimmed;
+}
+
+function mapImportRows(
+  headerCells: string[],
+  dataRows: string[][],
+): Record<string, unknown>[] {
+  const headers = headerCells.map(normalizeImportHeader);
+  if (!headers.includes("name") || !headers.includes("price")) {
+    throw new Error(
+      "The file needs a product name (for example, Product Name or Title) and a price (for example, Unit Price or Amount) column.",
+    );
+  }
+
+  return dataRows
+    .filter((cells) => cells.some((value) => value.trim() !== ""))
+    .map((cells) => {
+      const values: Record<string, unknown> = {};
+      headers.forEach((header, index) => {
+        if (!header) return;
+        const value = cells[index] || "";
+        const currentValue = values[header];
+        if (
+          !(header in values) ||
+          (typeof currentValue === "string" &&
+            currentValue.trim() === "" &&
+            value !== "")
+        ) {
+          values[header] = value;
+        }
+      });
+      return values;
+    });
+}
+
+function detectCsvDelimiter(source: string): string {
+  const delimiters = [",", ";", "\t"];
+  const counts = new Map(delimiters.map((delimiter) => [delimiter, 0]));
+  let quoted = false;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (quoted) {
+      if (character === '"' && source[index + 1] === '"') {
+        index += 1;
+      } else if (character === '"') {
+        quoted = false;
+      }
+    } else if (character === '"') {
+      quoted = true;
+    } else if (character === "\n" || character === "\r") {
+      break;
+    } else if (counts.has(character)) {
+      counts.set(character, (counts.get(character) || 0) + 1);
+    }
+  }
+
+  return delimiters.reduce((selected, delimiter) =>
+    (counts.get(delimiter) || 0) > (counts.get(selected) || 0)
+      ? delimiter
+      : selected,
+  );
+}
+
 function parseCsv(text: string): Record<string, unknown>[] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
   let quoted = false;
   const source = text.replace(/^\uFEFF/, "");
+  const delimiter = detectCsvDelimiter(source);
 
   for (let index = 0; index < source.length; index += 1) {
     const character = source[index];
@@ -85,7 +215,7 @@ function parseCsv(text: string): Record<string, unknown>[] {
       }
     } else if (character === '"' && cell.length === 0) {
       quoted = true;
-    } else if (character === ",") {
+    } else if (character === delimiter) {
       row.push(cell);
       cell = "";
     } else if (character === "\n" || character === "\r") {
@@ -103,40 +233,30 @@ function parseCsv(text: string): Record<string, unknown>[] {
   if (row.some((value) => value.trim())) rows.push(row);
 
   if (!rows.length) throw new Error("The selected file has no rows.");
-  const headers = rows[0].map((header) => header.trim());
-  if (!headers.includes("name") || !headers.includes("price")) {
-    throw new Error("The file needs at least the name and price columns.");
-  }
-  return rows.slice(1).map((cells) =>
-    Object.fromEntries(
-      headers.map((header, index) => [header, (cells[index] || "").trim()]),
-    ),
+  return mapImportRows(
+    rows[0].map((header) => header.trim()),
+    rows.slice(1).map((cells) => cells.map((value) => value.trim())),
   );
 }
 
 function parseSheetRows(rows: unknown[][]): Record<string, unknown>[] {
   const [headerRow, ...dataRows] = rows;
   if (!headerRow?.length) throw new Error("The selected workbook has no rows.");
-  const headers = headerRow.map((value) => String(value ?? "").trim());
-  if (!headers.includes("name") || !headers.includes("price")) {
-    throw new Error("The file needs at least the name and price columns.");
-  }
-  return dataRows
-    .filter((cells) => cells.some((value) => value !== null && value !== ""))
-    .map((cells) =>
-      Object.fromEntries(
-        headers.map((header, index) => [
-          header,
-          cells[index] instanceof Date
-            ? (cells[index] as Date).toISOString()
-            : String(cells[index] ?? "").trim(),
-        ]),
+  return mapImportRows(
+    headerRow.map((value) => String(value ?? "").trim()),
+    dataRows.map((cells) =>
+      cells.map((value) =>
+        value instanceof Date
+          ? value.toISOString()
+          : String(value ?? "").trim(),
       ),
-    );
+    ),
+  );
 }
 
 const emptyDraft = (): ProductDraft => ({
   name: "",
+  slug: "",
   description: "",
   price: "",
   currency: "NGN",
@@ -171,7 +291,7 @@ export default function CatalogPage() {
 
   const request = useCallback(
     async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
-      const token = await getToken();
+      const token = await getToken({ skipCache: true });
       if (!token) throw new Error("Your session expired. Please sign in again.");
       const response = await fetch(`${API_URL}/catalog/${path}`, {
         ...init,
@@ -181,17 +301,22 @@ export default function CatalogPage() {
           ...init.headers,
         },
       });
+      const responseBody = await response.text();
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as
-          | { message?: string | string[] }
-          | null;
-        const message = Array.isArray(payload?.message)
-          ? payload.message.join(", ")
-          : payload?.message;
-        throw new Error(message || `Request failed (${response.status})`);
+        let payload: unknown = null;
+        if (responseBody) {
+          try {
+            payload = JSON.parse(responseBody) as unknown;
+          } catch {
+            payload = null;
+          }
+        }
+        throw new Error(
+          getErrorMessage(payload, `Request failed (${response.status})`),
+        );
       }
-      if (response.status === 204) return undefined as T;
-      return (await response.json()) as T;
+      if (response.status === 204 || !responseBody.trim()) return undefined as T;
+      return JSON.parse(responseBody) as T;
     },
     [getToken],
   );
@@ -232,6 +357,7 @@ export default function CatalogPage() {
       setEditingProduct(product);
       setDraft({
         name: product.name,
+        slug: product.slug,
         description: product.description || "",
         price: String(product.price),
         currency: product.currency,
@@ -353,6 +479,7 @@ export default function CatalogPage() {
     try {
       const payload = {
         name: draft.name.trim(),
+        slug: draft.slug.trim() || undefined,
         description: draft.description.trim(),
         price: Number(draft.price),
         currency: draft.currency.trim().toUpperCase() || "NGN",
@@ -434,24 +561,6 @@ export default function CatalogPage() {
       setError(cause instanceof Error ? cause.message : "Could not import products.");
     } finally {
       setImporting(false);
-    }
-  }
-
-  async function addSampleData() {
-    setError("");
-    try {
-      const result = await request<{ created: number }>("sample-data", {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
-      setNotice(
-        result.created
-          ? `Added ${result.created} sample products.`
-          : "Sample products are already in this workspace.",
-      );
-      await loadCatalog();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not add sample data.");
     }
   }
 
@@ -565,9 +674,6 @@ export default function CatalogPage() {
                 </button>
                 <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={downloadTemplate} type="button">
                   Download template
-                </button>
-                <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={addSampleData} type="button">
-                  Add sample data
                 </button>
                 <button className="rounded-xl bg-[#5b5ce2] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#4546bb]" onClick={() => startProduct()} type="button">
                   Add product
@@ -761,6 +867,9 @@ export default function CatalogPage() {
               <div className="grid gap-5 p-6 sm:grid-cols-2">
                 <label className="text-sm font-medium text-slate-700 sm:col-span-2">Product name
                   <input className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" maxLength={180} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required value={draft.name} />
+                </label>
+                <label className="text-sm font-medium text-slate-700 sm:col-span-2">URL slug
+                  <input className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" maxLength={180} onChange={(event) => setDraft({ ...draft, slug: event.target.value })} placeholder="Auto-generated from product name when blank" value={draft.slug} />
                 </label>
                 <label className="text-sm font-medium text-slate-700 sm:col-span-2">Description
                   <textarea className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" onChange={(event) => setDraft({ ...draft, description: event.target.value })} rows={3} value={draft.description} />

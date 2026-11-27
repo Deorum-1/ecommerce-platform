@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
+import { OrganizationSwitcher, UserButton, useAuth } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import OrganizationRequired from "./organization-required";
 
 const links = [
   ["Overview", "/dashboard"],
@@ -17,6 +18,17 @@ const links = [
 
 export default function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { isLoaded, orgId } = useAuth();
+
+  if (
+    isLoaded &&
+    !orgId &&
+    pathname !== "/dashboard" &&
+    pathname !== "/dashboard/catalog"
+  ) {
+    return <OrganizationRequired />;
+  }
+
   if (
     pathname === "/dashboard" ||
     pathname === "/dashboard/catalog" ||

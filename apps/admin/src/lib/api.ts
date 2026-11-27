@@ -1,25 +1,31 @@
-function getErrorMessage(body: unknown): string {
+export function getErrorMessage(
+  body: unknown,
+  fallback = "The request could not be completed.",
+): string {
+  let message: string | undefined;
   if (
     typeof body === "object" &&
     body !== null &&
     "message" in body &&
     typeof body.message === "string"
   ) {
-    return body.message;
-  }
-
-  if (
+    message = body.message;
+  } else if (
     typeof body === "object" &&
     body !== null &&
     "message" in body &&
     Array.isArray(body.message)
   ) {
-    return body.message
+    message = body.message
       .filter((message) => typeof message === "string")
       .join(", ");
   }
 
-  return "The request could not be completed.";
+  if (message?.includes("An active Clerk organization is required")) {
+    return "Select or create a company workspace, then try again.";
+  }
+
+  return message || fallback;
 }
 
 export async function postWithClerkToken(

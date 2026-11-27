@@ -20,7 +20,10 @@ export class CatalogService {
 
   listCategories(tenantId: string) {
     return this.prisma.category.findMany({
-      where: { tenantId },
+      where: {
+        tenantId,
+        products: { some: { status: { not: 'ARCHIVED' } } },
+      },
       orderBy: { name: 'asc' },
     });
   }
@@ -63,7 +66,7 @@ export class CatalogService {
 
   listProducts(tenantId: string) {
     return this.prisma.product.findMany({
-      where: { tenantId },
+      where: { tenantId, status: { not: 'ARCHIVED' } },
       include: { category: true, variants: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -79,7 +82,6 @@ export class CatalogService {
     }
 
     const variants = dto.variants?.map((variant) => ({
-      tenantId,
       name: variant.name.trim(),
       sku: variant.sku?.trim() || null,
       price: variant.price,
@@ -146,7 +148,6 @@ export class CatalogService {
                   ...(dto.variants.length
                     ? {
                         create: dto.variants.map((variant) => ({
-                          tenantId,
                           name: variant.name.trim(),
                           sku: variant.sku?.trim() || null,
                           price: variant.price,
@@ -182,6 +183,7 @@ export class CatalogService {
       categories.map((category) => [category.name.trim().toLowerCase(), category]),
     );
     const errors: { row: number; message: string }[] = [];
+    const importedSlugs = new Set<string>();
     let imported = 0;
 
     for (const [index, row] of rows.entries()) {
@@ -190,12 +192,14 @@ export class CatalogService {
           throw new BadRequestException('Row must contain product fields');
         }
 
-        const name = this.rowString(row.name);
-        const price = this.rowNumber(row.price, 'price');
+      const productRow = this.normalizeImportRow(row);
+      const name = this.rowString(productRow.name);
+      const price = this.rowNumber(productRow.price, 'price');
         const inventoryQuantity =
-          row.inventoryQuantity === undefined || row.inventoryQuantity === ''
+        productRow.inventoryQuantity === undefined ||
+        productRow.inventoryQuantity === ''
             ? 0
-            : this.rowNumber(row.inventoryQuantity, 'inventoryQuantity');
+          : this.rowNumber(productRow.inventoryQuantity, 'inventoryQuantity');
         if (!Number.isInteger(inventoryQuantity)) {
           throw new BadRequestException('inventoryQuantity must be a whole number');
         }
@@ -206,29 +210,25 @@ export class CatalogService {
           throw new BadRequestException('name must be 180 characters or fewer');
         }
 
-        const categoryName = this.rowString(row.category ?? row.categoryName);
-        const category = categoryName
-          ? categoryByName.get(categoryName.toLowerCase())
-          : undefined;
-        if (categoryName && !category) {
-          throw new BadRequestException(`Category "${categoryName}" was not found`);
-        }
-
-        const status = this.rowString(row.status).toUpperCase() || 'DRAFT';
-        if (!['DRAFT', 'PUBLISHED', 'ARCHIVED'].includes(status)) {
-          throw new BadRequestException('status must be DRAFT, PUBLISHED, or ARCHIVED');
-        }
-        const currency = this.rowString(row.currency).toUpperCase() || 'NGN';
+        const categoryName = this.rowString(
+          productRow.category ?? productRow.categoryName,
+        );
+        const status = this.normalizeImportStatus(productRow.status);
+        const currency =
+          this.rowString(productRow.currency).toUpperCase() || 'NGN';
         if (currency.length !== 3) {
           throw new BadRequestException('currency must be a 3-letter code');
         }
 
         let imageUrls: string[] = [];
-        const images = row.imageUrls ?? row.images;
+        const images = productRow.imageUrls ?? productRow.images;
         if (Array.isArray(images)) {
           imageUrls = images.map((image) => String(image).trim()).filter(Boolean);
         } else if (typeof images === 'string' && images.trim()) {
-          imageUrls = images.split('|').map((image) => image.trim()).filter(Boolean);
+          imageUrls = images
+            .split(/[|;,\r\n]+/)
+            .map((image) => image.trim())
+            .filter(Boolean);
         }
         if (imageUrls.length > 10) {
           throw new BadRequestException('A product can have at most 10 images');
@@ -237,12 +237,16 @@ export class CatalogService {
           throw new BadRequestException('imageUrls must contain valid http(s) URLs');
         }
 
-        let variants = row.variants;
-        if (typeof variants === 'string' && variants.trim()) {
-          try {
-            variants = JSON.parse(variants);
-          } catch {
-            throw new BadRequestException('variants must be valid JSON');
+        let variants = productRow.variants;
+        if (typeof variants === 'string') {
+          if (variants.trim()) {
+            try {
+              variants = JSON.parse(variants);
+            } catch {
+              throw new BadRequestException('variants must be valid JSON');
+            }
+          } else {
+            variants = undefined;
           }
         }
         if (variants !== undefined && variants !== '') {
@@ -253,7 +257,9 @@ export class CatalogService {
             if (!variant || typeof variant !== 'object' || Array.isArray(variant)) {
               throw new BadRequestException('Each variant must be an object');
             }
-            const value = variant as Record<string, unknown>;
+            const value = this.normalizeImportRow(
+              variant as Record<string, unknown>,
+            );
             const variantName = this.rowString(value.name);
             if (!variantName) {
               throw new BadRequestException('Each variant needs a name');
@@ -281,31 +287,106 @@ export class CatalogService {
           });
         }
 
-        await this.createProduct(tenantId, {
+        const categoryKey = categoryName.toLowerCase();
+        let category = categoryKey
+          ? categoryByName.get(categoryKey)
+          : undefined;
+        if (categoryName && !category) {
+          category = await this.createCategory(tenantId, { name: categoryName });
+          categoryByName.set(categoryKey, category);
+        }
+
+        const importSlug = this.slugify(
+          this.rowString(productRow.slug) || name,
+        );
+        importedSlugs.add(importSlug);
+        const existingProduct = await this.prisma.product.findUnique({
+          where: { tenantId_slug: { tenantId, slug: importSlug } },
+        });
+        const productData: CreateProductDto = {
           name,
-          slug: this.rowString(row.slug) || undefined,
-          description: this.rowString(row.description) || undefined,
+          slug: this.rowString(productRow.slug) || undefined,
+          description: this.rowString(productRow.description) || undefined,
           price,
           currency,
-          status: ProductStatus[status as keyof typeof ProductStatus],
+          status,
           categoryId: category?.id,
           inventoryQuantity,
           imageUrls,
-          variants: variants as
-            | {
-                name: string;
-                sku?: string;
-                price?: number;
-                inventoryQuantity: number;
-              }[]
-            | undefined,
-        });
+          variants: Array.isArray(variants)
+            ? (variants as CreateProductDto['variants'])
+            : undefined,
+        };
+
+        if (existingProduct) {
+          const update: UpdateProductDto = {
+            name,
+            slug: this.rowString(productRow.slug) || existingProduct.slug,
+            price,
+            ...(Object.hasOwn(productRow, 'description')
+              ? { description: this.rowString(productRow.description) }
+              : {}),
+            categoryId: category?.id ?? null,
+            ...(this.rowString(productRow.currency)
+              ? { currency }
+              : {}),
+            ...(this.rowString(productRow.status)
+              ? { status }
+              : {}),
+            ...(Object.hasOwn(productRow, 'inventoryQuantity')
+              ? { inventoryQuantity }
+              : {}),
+            ...(Object.hasOwn(productRow, 'imageUrls') ? { imageUrls } : {}),
+            ...(Array.isArray(variants)
+              ? { variants: variants as CreateProductDto['variants'] }
+              : {}),
+          };
+          await this.updateProduct(tenantId, existingProduct.id, update);
+        } else {
+          await this.createProduct(tenantId, productData);
+        }
         imported += 1;
       } catch (error) {
         if (!(error instanceof HttpException)) throw error;
         errors.push({
           row: index + 2,
           message: error.message,
+        });
+      }
+    }
+
+    if (errors.length === 0) {
+      const existingProducts = await this.prisma.product.findMany({
+        where: { tenantId },
+        select: {
+          id: true,
+          slug: true,
+          _count: { select: { orderItems: true } },
+        },
+      });
+      const staleProducts = existingProducts.filter(
+        (product) => !importedSlugs.has(product.slug),
+      );
+      const productsToArchive = staleProducts
+        .filter((product) => product._count.orderItems > 0)
+        .map((product) => product.id);
+      const productsToDelete = staleProducts
+        .filter((product) => product._count.orderItems === 0)
+        .map((product) => product.id);
+
+      if (productsToArchive.length > 0 || productsToDelete.length > 0) {
+        await this.prisma.$transaction(async (transaction) => {
+          if (productsToArchive.length > 0) {
+            await transaction.product.updateMany({
+              where: { tenantId, id: { in: productsToArchive } },
+              data: { status: 'ARCHIVED' },
+            });
+          }
+          if (productsToDelete.length > 0) {
+            await transaction.product.deleteMany({
+              where: { tenantId, id: { in: productsToDelete } },
+            });
+          }
         });
       }
     }
@@ -334,85 +415,191 @@ export class CatalogService {
     return { cloudName, apiKey, timestamp, folder, allowedFormats, signature };
   }
 
-  async seedSampleData(tenantId: string) {
-    const samples = [
-      {
-        categoryName: 'Accessories',
-        categorySlug: 'sample-accessories',
-        name: 'Everyday Tote',
-        slug: 'sample-everyday-tote',
-        price: 8500,
-        inventoryQuantity: 24,
-        variant: { name: 'Natural', sku: 'SAMPLE-TOTE-NATURAL', inventoryQuantity: 12 },
-      },
-      {
-        categoryName: 'Apparel',
-        categorySlug: 'sample-apparel',
-        name: 'Classic Cotton Tee',
-        slug: 'sample-classic-cotton-tee',
-        price: 12000,
-        inventoryQuantity: 18,
-        variant: { name: 'Black / M', sku: 'SAMPLE-TEE-BLACK-M', inventoryQuantity: 8 },
-      },
-      {
-        categoryName: 'Home',
-        categorySlug: 'sample-home',
-        name: 'Stoneware Mug',
-        slug: 'sample-stoneware-mug',
-        price: 6500,
-        inventoryQuantity: 30,
-        variant: { name: 'Cream', sku: 'SAMPLE-MUG-CREAM', inventoryQuantity: 15 },
-      },
-    ];
-    let created = 0;
-
-    for (const sample of samples) {
-      let category = await this.prisma.category.findUnique({
-        where: { tenantId_slug: { tenantId, slug: sample.categorySlug } },
-      });
-      if (!category) {
-        category = await this.createCategory(tenantId, {
-          name: sample.categoryName,
-          slug: sample.categorySlug,
-        });
-      }
-
-      const existing = await this.prisma.product.findUnique({
-        where: { tenantId_slug: { tenantId, slug: sample.slug } },
-      });
-      if (existing) continue;
-
-      await this.createProduct(tenantId, {
-        name: sample.name,
-        slug: sample.slug,
-        price: sample.price,
-        currency: 'NGN',
-        status: 'DRAFT',
-        categoryId: category.id,
-        inventoryQuantity: sample.inventoryQuantity,
-        variants: [sample.variant],
-      });
-      created += 1;
-    }
-
-    return { created };
-  }
-
   private rowString(value: unknown): string {
     return typeof value === 'string' || typeof value === 'number'
       ? String(value).trim()
       : '';
   }
 
+  private normalizeImportStatus(value: unknown): ProductStatus {
+    if (value === true) return ProductStatus.PUBLISHED;
+    if (value === false) return ProductStatus.DRAFT;
+
+    const status = this.rowString(value)
+      .toUpperCase()
+      .replace(/[\s_-]+/g, ' ');
+    const aliases: Record<string, ProductStatus> = {
+      DRAFT: ProductStatus.DRAFT,
+      PENDING: ProductStatus.DRAFT,
+      INACTIVE: ProductStatus.DRAFT,
+      DISABLED: ProductStatus.DRAFT,
+      HIDDEN: ProductStatus.DRAFT,
+      UNPUBLISHED: ProductStatus.DRAFT,
+      FALSE: ProductStatus.DRAFT,
+      NO: ProductStatus.DRAFT,
+      '0': ProductStatus.DRAFT,
+      PUBLISHED: ProductStatus.PUBLISHED,
+      PUBLISH: ProductStatus.PUBLISHED,
+      ACTIVE: ProductStatus.PUBLISHED,
+      ENABLED: ProductStatus.PUBLISHED,
+      LIVE: ProductStatus.PUBLISHED,
+      AVAILABLE: ProductStatus.PUBLISHED,
+      YES: ProductStatus.PUBLISHED,
+      TRUE: ProductStatus.PUBLISHED,
+      '1': ProductStatus.PUBLISHED,
+      ARCHIVE: ProductStatus.ARCHIVED,
+      ARCHIVED: ProductStatus.ARCHIVED,
+      DISCONTINUED: ProductStatus.ARCHIVED,
+    };
+
+    if (!status) return ProductStatus.DRAFT;
+    const normalized = aliases[status];
+    if (normalized) return normalized;
+
+    throw new BadRequestException(
+      `status "${this.rowString(value)}" must be DRAFT, PUBLISHED, or ARCHIVED`,
+    );
+  }
+
+  private normalizeImportRow(
+    row: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const aliases: Record<string, string> = {
+      name: 'name',
+      product: 'name',
+      productname: 'name',
+      producttitle: 'name',
+      item: 'name',
+      itemname: 'name',
+      title: 'name',
+      price: 'price',
+      unitprice: 'price',
+      sellingprice: 'price',
+      saleprice: 'price',
+      retailprice: 'price',
+      regularprice: 'price',
+      productprice: 'price',
+      itemprice: 'price',
+      amount: 'price',
+      currency: 'currency',
+      currencycode: 'currency',
+      status: 'status',
+      productstatus: 'status',
+      published: 'status',
+      publishedstatus: 'status',
+      publicationstatus: 'status',
+      availability: 'status',
+      availabilitystatus: 'status',
+      visibility: 'status',
+      description: 'description',
+      productdescription: 'description',
+      details: 'description',
+      slug: 'slug',
+      producthandle: 'slug',
+      handle: 'slug',
+      category: 'category',
+      categoryname: 'category',
+      productcategory: 'category',
+      type: 'category',
+      producttype: 'category',
+      inventoryquantity: 'inventoryQuantity',
+      quantity: 'inventoryQuantity',
+      qty: 'inventoryQuantity',
+      stock: 'inventoryQuantity',
+      stockquantity: 'inventoryQuantity',
+      stockqty: 'inventoryQuantity',
+      stocklevel: 'inventoryQuantity',
+      availablestock: 'inventoryQuantity',
+      availablequantity: 'inventoryQuantity',
+      quantityavailable: 'inventoryQuantity',
+      onhandquantity: 'inventoryQuantity',
+      imageurls: 'imageUrls',
+      image: 'imageUrls',
+      imageurl: 'imageUrls',
+      imagesrc: 'imageUrls',
+      productimageurl: 'imageUrls',
+      images: 'imageUrls',
+      photourl: 'imageUrls',
+      photos: 'imageUrls',
+      variants: 'variants',
+      sku: 'sku',
+      variantname: 'name',
+      variantprice: 'price',
+      variantsku: 'sku',
+      variantquantity: 'inventoryQuantity',
+      variantinventoryqty: 'inventoryQuantity',
+      variantinventoryquantity: 'inventoryQuantity',
+    };
+    const normalized: Record<string, unknown> = {};
+
+    for (const [field, value] of Object.entries(row)) {
+      const key = field.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const normalizedField = aliases[key] || field;
+      const currentValue = normalized[normalizedField];
+      const currentIsEmpty =
+        currentValue === undefined ||
+        currentValue === null ||
+        (typeof currentValue === 'string' && currentValue.trim() === '');
+      const nextIsEmpty =
+        value === undefined ||
+        value === null ||
+        (typeof value === 'string' && value.trim() === '');
+
+      if (
+        !(normalizedField in normalized) ||
+        (currentIsEmpty && !nextIsEmpty)
+      ) {
+        normalized[normalizedField] = value;
+      }
+    }
+
+    return normalized;
+  }
+
   private rowNumber(value: unknown, field: string): number {
     if (typeof value === 'string' && !value.trim()) {
       throw new BadRequestException(`${field} is required`);
     }
-    const number = typeof value === 'number' ? value : Number(value);
+    const number =
+      typeof value === 'number'
+        ? value
+        : Number(this.normalizeImportNumber(String(value)));
     if (!Number.isFinite(number) || number < 0) {
       throw new BadRequestException(`${field} must be a non-negative number`);
     }
     return number;
+  }
+
+  private normalizeImportNumber(value: string): string {
+    const cleaned = value
+      .trim()
+      .replace(/^[A-Z]{3}\s*/i, '')
+      .replace(/\s*[A-Z]{3}$/i, '')
+      .replace(/[\p{Sc}\s\u00a0\u202f]/gu, '');
+    const commaIndex = cleaned.lastIndexOf(',');
+    const dotIndex = cleaned.lastIndexOf('.');
+    const decimalIndex = Math.max(commaIndex, dotIndex);
+
+    if (decimalIndex < 0) return cleaned;
+
+    const fraction = cleaned.slice(decimalIndex + 1);
+    const hasBothSeparators = commaIndex >= 0 && dotIndex >= 0;
+    if (!hasBothSeparators && fraction.length === 3) {
+      const groups = cleaned.split(/[,.]/);
+      const standardGrouping =
+        groups[0].length <= 3 &&
+        groups.slice(1).every((group) => group.length === 3);
+      const indianGrouping =
+        groups.length > 2 &&
+        groups[0].length <= 3 &&
+        groups.slice(1, -1).every((group) => group.length === 2) &&
+        groups.at(-1)?.length === 3;
+      if (standardGrouping || indianGrouping) return groups.join('');
+    }
+
+    const whole = cleaned.slice(0, decimalIndex).replace(/[,.]/g, '');
+    const decimals = fraction.replace(/[,.]/g, '');
+    return `${whole}.${decimals}`;
   }
 
   private findCategory(tenantId: string, categoryId: string) {

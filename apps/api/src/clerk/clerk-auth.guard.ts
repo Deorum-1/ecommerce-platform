@@ -27,9 +27,9 @@ export class ClerkAuthGuard implements CanActivate {
     const secretKey = this.configService.getOrThrow<string>('CLERK_SECRET_KEY');
     const authorizedParty =
       this.configService.getOrThrow<string>('ADMIN_URL');
-    let token: Awaited<ReturnType<typeof verifyToken>>;
+    let claims: Awaited<ReturnType<typeof verifyToken>>;
     try {
-      token = await verifyToken(match[1], {
+      claims = await verifyToken(match[1], {
         secretKey,
         authorizedParties: [authorizedParty],
       });
@@ -37,7 +37,6 @@ export class ClerkAuthGuard implements CanActivate {
       throw new UnauthorizedException('The Clerk session token is invalid');
     }
 
-    const claims = token.data;
     if (
       !claims ||
       typeof claims !== 'object' ||
@@ -47,16 +46,37 @@ export class ClerkAuthGuard implements CanActivate {
       throw new UnauthorizedException('The Clerk session token is invalid');
     }
 
+    const organization =
+      'o' in claims && typeof claims.o === 'object' && claims.o !== null
+        ? claims.o
+        : undefined;
+    const compactOrganizationId =
+      organization &&
+      'id' in organization &&
+      typeof organization.id === 'string'
+        ? organization.id
+        : undefined;
+    const compactOrganizationRole =
+      organization &&
+      'rol' in organization &&
+      typeof organization.rol === 'string'
+        ? organization.rol
+        : undefined;
+
     request.user = {
       userId: claims.sub,
       organizationId:
         'org_id' in claims && typeof claims.org_id === 'string'
           ? claims.org_id
-          : undefined,
+          : compactOrganizationId,
       organizationRole:
         'org_role' in claims && typeof claims.org_role === 'string'
           ? claims.org_role
-          : undefined,
+          : compactOrganizationRole
+            ? compactOrganizationRole.startsWith('org:')
+              ? compactOrganizationRole
+              : `org:${compactOrganizationRole}`
+            : undefined,
     };
 
     return true;
