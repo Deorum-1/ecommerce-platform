@@ -1,36 +1,19 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Admin dashboard
 
-## Getting Started
+The admin app uses Clerk for sign-up, sign-in, session management, organization
+selection, and sign-out. Copy the workspace `.env.example` to `.env` and set
+`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `ADMIN_URL`, and
+`NEXT_PUBLIC_API_URL`.
 
-First, run the development server:
+Enable Organizations in the Clerk Dashboard and keep the default organization
+roles: `org:admin` is the company owner and `org:member` is staff. Configure
+Clerk invitation emails for the application. New users sign up at `/sign-up`,
+then create their company at `/onboarding/create-company`. Owners invite staff
+from `/dashboard/team`; API authorization enforces the role even if a staff
+member navigates to that page directly.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Run the app from the workspace root with:
+
+```sh
+pnpm --filter @repo/admin dev
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

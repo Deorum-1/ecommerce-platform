@@ -4,14 +4,15 @@
   "private": true,
   "exports": "./src/index.ts",
   "scripts": {
-    "db:generate": "prisma generate --schema prisma/schema.prisma",
-    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
-    "db:validate": "prisma validate --schema prisma/schema.prisma"
+    "db:generate": "dotenv -e ../../.env -- prisma generate --schema prisma/schema.prisma",
+    "db:migrate": "dotenv -e ../../.env -- prisma migrate dev --schema prisma/schema.prisma",
+    "db:validate": "dotenv -e ../../.env -- prisma validate --schema prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0"
   },
   "devDependencies": {
+    "dotenv-cli": "^11.1.0",
     "prisma": "^6.19.0"
   }
 }

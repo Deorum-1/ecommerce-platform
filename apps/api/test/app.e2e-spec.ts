@@ -23,6 +23,20 @@ describe('AppController (e2e)', () => {
       .expect('Hello World!');
   });
 
+  it('requires a Clerk session to register a company', () => {
+    return request(app.getHttpServer())
+      .post('/auth/register-company')
+      .send({ name: 'Acme Shop' })
+      .expect(401);
+  });
+
+  it('requires a Clerk session to invite staff', () => {
+    return request(app.getHttpServer())
+      .post('/tenants/invitations')
+      .send({ emailAddress: 'staff@example.com' })
+      .expect(401);
+  });
+
   afterEach(async () => {
     await app.close();
   });
