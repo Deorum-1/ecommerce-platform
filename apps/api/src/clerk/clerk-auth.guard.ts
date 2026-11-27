@@ -24,10 +24,18 @@ export class ClerkAuthGuard implements CanActivate {
       throw new UnauthorizedException('A Clerk bearer token is required');
     }
 
-    const token = await verifyToken(match[1], {
-      secretKey: this.configService.getOrThrow<string>('CLERK_SECRET_KEY'),
-      authorizedParties: [this.configService.getOrThrow<string>('ADMIN_URL')],
-    });
+    const secretKey = this.configService.getOrThrow<string>('CLERK_SECRET_KEY');
+    const authorizedParty =
+      this.configService.getOrThrow<string>('ADMIN_URL');
+    let token: Awaited<ReturnType<typeof verifyToken>>;
+    try {
+      token = await verifyToken(match[1], {
+        secretKey,
+        authorizedParties: [authorizedParty],
+      });
+    } catch {
+      throw new UnauthorizedException('The Clerk session token is invalid');
+    }
 
     const claims = token.data;
     if (

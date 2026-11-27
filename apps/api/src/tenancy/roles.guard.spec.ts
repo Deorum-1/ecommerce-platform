@@ -1,5 +1,6 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-host';
 import { Roles } from './roles.decorator';
 import { RolesGuard } from './roles.guard';
 import type { TenantRequest } from './tenant-request.interface';
@@ -17,13 +18,11 @@ describe('RolesGuard', () => {
       user: { userId: 'user-123', organizationRole },
     };
 
-    return {
-      getHandler: () => StaffController.prototype.invite,
-      getClass: () => StaffController,
-      switchToHttp: () => ({
-        getRequest: () => request,
-      }),
-    } as ExecutionContext;
+    return new ExecutionContextHost(
+      [request],
+      StaffController,
+      StaffController.prototype.invite,
+    );
   }
 
   it('allows owners to perform owner-only actions', () => {

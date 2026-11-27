@@ -31,3 +31,20 @@ application must have Organizations enabled and retain these default role keys.
 
 Tenant-owned Prisma models store `tenantId`, use tenant-scoped unique
 constraints, and enforce tenant-consistent relations between related records.
+
+## Store administration
+
+The authenticated admin API exposes tenant-scoped order, customer, overview,
+analytics, discount, and store-settings data. Product creation and editing use
+the `/catalog/products` endpoints. Mutations to discounts and store settings
+require the active Clerk user to have the `org:admin` role. Apply committed
+Prisma migrations and regenerate the client after schema changes:
+
+```sh
+pnpm --filter @repo/database db:migrate
+pnpm --filter @repo/database db:generate
+```
+
+Coupon codes can be created, activated, and deleted in the admin. Checkout
+does not yet validate or apply coupon codes. Store logos are configured using
+an HTTPS image URL; image upload is not part of store settings.

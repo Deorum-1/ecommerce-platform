@@ -1,1 +1,7 @@
-export { Prisma, PrismaClient } from "@prisma/client";
+export {
+  OrderStatus,
+  DiscountType,
+  Prisma,
+  PrismaClient,
+  ProductStatus,
+} from "@prisma/client";

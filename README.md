@@ -59,8 +59,8 @@ ecommerce-platform/
 
 ## Current Status
 
-**Phase**: Phase 1 foundation
-**Next Step**: Begin Phase 2 backend foundation; see `context/06-CURRENT-STATUS.md`
+**Phase**: Phase 4 — Orders & Checkout implemented
+**Next Step**: Apply the order migration and configure test credentials to exercise checkout.
 
 ### Database and Redis
 
@@ -83,14 +83,33 @@ pnpm --filter @repo/database run db:migrate
 ### Authentication and staff access
 
 Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` in `.env`, then
-enable Organizations in the Clerk Dashboard. The admin app uses Clerk for
-sign-up, login, and logout. Company registration creates a Clerk organization
-and a matching tenant; the registering user becomes its owner. Owners can
-invite staff from the dashboard. The default Clerk roles `org:admin` (owner)
-and `org:member` (staff) are used for server-side authorization.
+enable Organizations in the Clerk Dashboard. Set the membership mode to
+**optional** so new users can sign in before creating a company through the
+custom onboarding flow. Set the creator role to `org:admin` and the default
+member role to `org:member`; registration creates the organization with the
+registering user as its creator, and invitations assign staff `org:member`.
+Owners can invite staff from the dashboard. These roles are enforced by the
+API, not only hidden in the admin UI.
 
 The API verifies Clerk bearer tokens and maps the token's active organization
 to a tenant. Tenant identity is never accepted from a request header.
+
+### Orders, checkout, and notifications
+
+Set `PAYSTACK_SECRET_KEY` in the root `.env.local`; use a Paystack test key
+until ready for live payments. Configure the Paystack webhook to
+`https://<api-host>/payments/paystack/webhook`. The API verifies Paystack
+transactions and webhook signatures before marking an order paid.
+
+Configure SMTP with `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`,
+and `SMTP_FROM` for order confirmation email. Configure `TERMII_API_KEY` and
+`TERMII_SENDER_ID` for order-placed and payment-confirmed SMS. Notifications
+are skipped with a server warning when their provider is not configured.
+
+Copy `apps/web/.env.example` to `apps/web/.env.local`, set
+`NEXT_PUBLIC_STOREFRONT_TENANT_SLUG` to the slug created during company
+registration, and keep `NEXT_PUBLIC_API_URL` pointed at the API. For a quick
+local preview, the storefront also accepts `?store=<tenant-slug>`.
 
 ---
 

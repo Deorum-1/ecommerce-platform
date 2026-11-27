@@ -8,16 +8,25 @@ import { DatabaseModule } from './database/database.module';
 import { RedisModule } from './redis/redis.module';
 import { TenancyModule } from './tenancy/tenancy.module';
 import { TenantInvitationsModule } from './tenancy/tenant-invitations.module';
+import { CatalogModule } from './catalog/catalog.module';
+import { OrdersModule } from './orders/orders.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: '../../.env' }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['../../.env.local', '../../.env'],
+    }),
     ClerkModule,
     AuthModule,
     DatabaseModule,
     RedisModule,
     TenancyModule,
     TenantInvitationsModule,
+    CatalogModule,
+    OrdersModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],
