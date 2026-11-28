@@ -30,10 +30,14 @@ describe('AppController (e2e)', () => {
       .expect(401);
   });
 
-  it('requires a Clerk session to invite staff', () => {
+  it('requires a Clerk session to create a staff account', () => {
     return request(app.getHttpServer())
-      .post('/tenants/invitations')
-      .send({ emailAddress: 'staff@example.com' })
+      .post('/tenants/members')
+      .send({
+        emailAddress: 'staff@example.com',
+        firstName: 'Staff',
+        lastName: 'Member',
+      })
       .expect(401);
   });
 

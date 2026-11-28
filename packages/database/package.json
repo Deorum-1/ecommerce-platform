@@ -6,7 +6,8 @@
   "scripts": {
     "db:generate": "dotenv -e ../../.env -- prisma generate --schema prisma/schema.prisma",
     "db:migrate": "dotenv -e ../../.env -- prisma migrate dev --schema prisma/schema.prisma",
-    "db:validate": "dotenv -e ../../.env -- prisma validate --schema prisma/schema.prisma"
+    "db:validate": "dotenv -e ../../.env -- prisma validate --schema prisma/schema.prisma",
+    "db:seed-demo": "dotenv -e ../../.env.local -- node prisma/seed-demo-data.cjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0"
