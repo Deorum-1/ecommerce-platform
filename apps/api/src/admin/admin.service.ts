@@ -27,7 +27,9 @@ export class AdminService {
           where: { tenantId },
           select: { status: true, total: true, currency: true },
         }),
-        this.prisma.product.count({ where: { tenantId } }),
+        this.prisma.product.count({
+          where: { tenantId, status: { not: 'ARCHIVED' } },
+        }),
         this.prisma.order.findMany({
           where: { tenantId },
           include: { items: true },
@@ -35,7 +37,11 @@ export class AdminService {
           take: 5,
         }),
         this.prisma.product.findMany({
-          where: { tenantId, inventoryQuantity: { lte: 5 } },
+          where: {
+            tenantId,
+            status: { not: 'ARCHIVED' },
+            inventoryQuantity: { lte: 5 },
+          },
           orderBy: { inventoryQuantity: 'asc' },
           take: 10,
           select: {
@@ -46,7 +52,11 @@ export class AdminService {
           },
         }),
         this.prisma.product.count({
-          where: { tenantId, inventoryQuantity: { lte: 5 } },
+          where: {
+            tenantId,
+            status: { not: 'ARCHIVED' },
+            inventoryQuantity: { lte: 5 },
+          },
         }),
       ]);
     const paidOrders = orders.filter((order) =>
@@ -103,6 +113,7 @@ export class AdminService {
           where: {
             tenantId,
             id: { in: itemGroups.map((item) => item.productId) },
+            status: { not: 'ARCHIVED' },
           },
           select: { id: true, name: true, currency: true },
         })
@@ -112,10 +123,12 @@ export class AdminService {
     );
     return {
       daily: Array.from(grouped, ([date, values]) => ({ date, ...values })),
-      topProducts: itemGroups.map((item) => ({
-        ...productById.get(item.productId),
-        quantity: item._sum.quantity ?? 0,
-      })),
+      topProducts: itemGroups.flatMap((item) => {
+        const product = productById.get(item.productId);
+        return product
+          ? [{ ...product, quantity: item._sum.quantity ?? 0 }]
+          : [];
+      }),
       currency: orders[0]?.currency ?? 'NGN',
     };
   }

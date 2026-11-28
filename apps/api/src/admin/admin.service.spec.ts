@@ -4,6 +4,7 @@ import { PrismaService } from '../database/prisma.service';
 describe('AdminService', () => {
   const prisma = {
     order: { findMany: jest.fn() },
+    orderItem: { groupBy: jest.fn() },
     product: { count: jest.fn(), findMany: jest.fn() },
   };
   let service: AdminService;
@@ -46,8 +47,52 @@ describe('AdminService', () => {
     );
     expect(prisma.product.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { tenantId: 'tenant-a', inventoryQuantity: { lte: 5 } },
+        where: {
+          tenantId: 'tenant-a',
+          status: { not: 'ARCHIVED' },
+          inventoryQuantity: { lte: 5 },
+        },
       }),
     );
+    expect(prisma.product.count).toHaveBeenNthCalledWith(1, {
+      where: { tenantId: 'tenant-a', status: { not: 'ARCHIVED' } },
+    });
+  });
+
+  it('excludes archived products from analytics rankings', async () => {
+    prisma.order.findMany.mockResolvedValue([
+      {
+        createdAt: new Date('2026-11-27T12:00:00.000Z'),
+        total: { toNumber: () => 120 },
+        status: 'PAID',
+        currency: 'NGN',
+      },
+    ]);
+    prisma.orderItem.groupBy.mockResolvedValue([
+      { productId: 'current-product', _sum: { quantity: 3 } },
+      { productId: 'archived-product', _sum: { quantity: 5 } },
+    ]);
+    prisma.product.findMany.mockResolvedValue([
+      { id: 'current-product', name: 'Imported item', currency: 'NGN' },
+    ]);
+
+    const result = await service.analytics('tenant-a');
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: 'tenant-a',
+        id: { in: ['current-product', 'archived-product'] },
+        status: { not: 'ARCHIVED' },
+      },
+      select: { id: true, name: true, currency: true },
+    });
+    expect(result.topProducts).toEqual([
+      {
+        id: 'current-product',
+        name: 'Imported item',
+        currency: 'NGN',
+        quantity: 3,
+      },
+    ]);
   });
 });

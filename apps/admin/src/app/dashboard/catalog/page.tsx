@@ -548,13 +548,25 @@ export default function CatalogPage() {
                 throw new Error("Choose a CSV or Excel (.xlsx) file.");
               })();
       if (!rows.length) throw new Error("The file contains no product rows.");
+      if (rows.length > 250) {
+        throw new Error("Import files can contain no more than 250 product rows.");
+      }
+      const confirmed = window.confirm(
+        `Import ${rows.length} product row${rows.length === 1 ? "" : "s"} from "${file.name}"?\n\n` +
+          "Stock values in the file replace existing quantities. Categories are matched or created from the file. " +
+          "Products missing from a fully valid import are removed unless they have order history, in which case they are archived. " +
+          "If any row fails validation, valid rows may still be saved, but catalog cleanup will be skipped.",
+      );
+      if (!confirmed) return;
       const result = await request<ImportResult>("products/import", {
         method: "POST",
         body: JSON.stringify({ rows }),
       });
       setImportResult(result);
       setNotice(
-        `Imported ${result.imported} product${result.imported === 1 ? "" : "s"}; ${result.failed} row${result.failed === 1 ? "" : "s"} need attention.`,
+        result.failed
+          ? `Imported ${result.imported} valid product row${result.imported === 1 ? "" : "s"}; ${result.failed} row${result.failed === 1 ? "" : "s"} failed. Valid rows may have been saved, but catalog replacement was skipped.`
+          : `Imported ${result.imported} product${result.imported === 1 ? "" : "s"}. The active catalog now matches the file.`,
       );
       await loadCatalog();
     } catch (cause) {
@@ -681,6 +693,21 @@ export default function CatalogPage() {
               </div>
             )}
           </div>
+
+          {canManage && section === "products" && (
+            <section aria-labelledby="catalog-import-title" className="mb-6 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-5">
+              <h2 className="font-semibold text-indigo-950" id="catalog-import-title">Spreadsheet import</h2>
+              <p className="mt-1 text-sm leading-6 text-indigo-900/80">
+                CSV and Excel (.xlsx) files can set product details, categories, variants, prices, currency, status, images, and stock. Product name and price are required; imports support up to 250 rows.
+              </p>
+              <div className="mt-3 grid gap-2 text-sm leading-6 text-indigo-900/80 sm:grid-cols-2">
+                <p>Imported stock replaces current quantities. Categories are matched by name or created from the file.</p>
+                <p>A fully valid import replaces the active catalog. Products with order history are archived; other products missing from the file are removed.</p>
+                <p>If rows fail validation, valid rows may still save, but catalog cleanup is skipped. Review the row errors before importing again.</p>
+                <p>Import image URLs in the spreadsheet, or upload local image files from a product’s editor to Cloudinary. Sample products are not added to merchant catalogs.</p>
+              </div>
+            </section>
+          )}
 
           {!canManage && (
             <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

@@ -86,11 +86,11 @@ function parseCart(value: unknown): Record<string, CartLine> {
   ) as Record<string, CartLine>;
 }
 
-const formatPrice = (price: number) =>
+const formatPrice = (price: number, currency: string) =>
   new Intl.NumberFormat("en-NG", {
     style: "currency",
-    currency: "NGN",
-    maximumFractionDigits: 0,
+    currency: currency.toUpperCase(),
+    maximumFractionDigits: 2,
   }).format(price);
 
 export default function Home() {
@@ -224,6 +224,15 @@ export default function Home() {
     (total, item) => total + item.line.quantity,
     0,
   );
+  const cartCurrencies = [
+    ...new Set(cartItems.map((item) => item.product.currency.toUpperCase())),
+  ];
+  const cartCurrency = cartCurrencies.length === 1 ? cartCurrencies[0] : null;
+  const hasUnavailableCartItems = cartItems.some(
+    (item) =>
+      item.line.quantity >
+      (item.variant?.inventoryQuantity ?? item.product.inventoryQuantity),
+  );
   const subtotal = cartItems.reduce(
     (total, item) => total + item.unitPrice * item.line.quantity,
     0,
@@ -247,7 +256,7 @@ export default function Home() {
         delete remainingItems[key];
         return remainingItems;
       }
-      if (nextQuantity > stock) return currentCart;
+      if (amount > 0 && nextQuantity > stock) return currentCart;
       return { ...currentCart, [key]: { ...line, quantity: nextQuantity } };
     });
   }
@@ -260,7 +269,7 @@ export default function Home() {
       : undefined;
     if (product.variants.length > 0 && !variant) return;
     const stock = variant?.inventoryQuantity ?? product.inventoryQuantity;
-    if (stock < 1) return;
+    if (stock < 1 || product.currency.toUpperCase() !== "NGN") return;
     const key = `${product.id}:${variantId || ""}`;
     setCart((currentCart) => {
       const current = currentCart[key];
@@ -279,6 +288,20 @@ export default function Home() {
   async function beginCheckout(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!storeSlug || cartItems.length === 0) return;
+    if (cartCurrency !== "NGN") {
+      setCheckoutError(
+        cartCurrency
+          ? "Paystack checkout currently supports NGN products only."
+          : "Your bag contains multiple currencies. Checkout requires products in one currency.",
+      );
+      return;
+    }
+    if (hasUnavailableCartItems) {
+      setCheckoutError(
+        "Your bag has quantities above current stock. Update the quantities before checkout.",
+      );
+      return;
+    }
 
     setSubmittingCheckout(true);
     setCheckoutError("");
@@ -598,7 +621,17 @@ export default function Home() {
           <p className="mt-8 text-sm text-[#77756e]">Loading the collection…</p>
         ) : visibleProducts.length > 0 ? (
           <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-8 sm:gap-x-6 sm:gap-y-10 lg:grid-cols-4">
-            {visibleProducts.map((product) => (
+            {visibleProducts.map((product) => {
+              const selectedVariant =
+                product.variants.find(
+                  (variant) => variant.id === selectedVariants[product.id],
+                ) || product.variants[0];
+              const availableStock =
+                selectedVariant?.inventoryQuantity ?? product.inventoryQuantity;
+              const checkoutSupported =
+                product.currency.toUpperCase() === "NGN";
+
+              return (
               <article className="group min-w-0" key={product.id}>
                 <div className="relative flex aspect-[.86/1] items-center justify-center overflow-hidden rounded-2xl bg-[#eee9df] sm:rounded-[1.4rem]">
                   <span className="absolute -right-8 -top-8 h-36 w-36 rounded-full bg-white/25 transition-transform duration-500 group-hover:scale-125" />
@@ -623,16 +656,16 @@ export default function Home() {
                     aria-label={`Add ${product.name} to bag`}
                     className="absolute bottom-3 right-3 grid h-10 w-10 place-items-center rounded-full bg-[#fbfaf7] text-xl text-[#263b30] shadow-md transition hover:scale-105 hover:bg-[#263b30] hover:text-white disabled:cursor-not-allowed disabled:opacity-40 sm:bottom-4 sm:right-4"
                     disabled={
-                      (product.variants.length > 0
-                        ? (
-                            product.variants.find(
-                              (variant) =>
-                                variant.id === selectedVariants[product.id],
-                            ) || product.variants[0]
-                          ).inventoryQuantity
-                        : product.inventoryQuantity) < 1
+                      availableStock < 1 || !checkoutSupported
                     }
                     onClick={() => addProductToCart(product)}
+                    title={
+                      !checkoutSupported
+                        ? "Paystack checkout currently supports NGN products only."
+                        : availableStock < 1
+                          ? "Out of stock"
+                          : "Add to bag"
+                    }
                     type="button"
                   >
                     +
@@ -648,9 +681,22 @@ export default function Home() {
                     </p>
                   </div>
                   <p className="shrink-0 text-xs font-semibold text-[#34332c] sm:text-sm">
-                    {formatPrice(Number(product.price))}
+                    {formatPrice(
+                      Number(selectedVariant?.price ?? product.price),
+                      product.currency,
+                    )}
                   </p>
                 </div>
+                <p className="mt-1 text-xs text-[#8a867c]">
+                  {availableStock > 0
+                    ? `${availableStock} in stock`
+                    : "Out of stock"}
+                </p>
+                {!checkoutSupported && (
+                  <p className="mt-1 text-xs text-[#9b5b39]">
+                    Online checkout currently supports NGN products only.
+                  </p>
+                )}
                 {product.variants.length > 0 && (
                   <label className="mt-3 block text-xs text-[#77756e]">
                     Option
@@ -673,8 +719,8 @@ export default function Home() {
                           value={variant.id}
                         >
                           {variant.name}
-                          {variant.price
-                            ? ` — ${formatPrice(Number(variant.price))}`
+                          {variant.price !== null && variant.price !== undefined
+                            ? ` — ${formatPrice(Number(variant.price), product.currency)}`
                             : ""}
                         </option>
                       ))}
@@ -682,7 +728,8 @@ export default function Home() {
                   </label>
                 )}
               </article>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="mt-6 rounded-2xl border border-dashed border-[#d9d4c8] px-5 py-14 text-center">
@@ -690,7 +737,9 @@ export default function Home() {
               Nothing in this corner just yet
             </p>
             <p className="mt-2 text-sm text-[#77756e]">
-              Try another search or choose a different collection.
+            {products.length
+              ? "Try another search or choose a different collection."
+              : "Published products from this store’s catalog will appear here after import."}
             </p>
             {!storeSlug && !catalogError && (
               <p className="mt-2 text-xs text-[#8a867c]">
@@ -837,8 +886,15 @@ export default function Home() {
                             {item.variant?.name
                               ? `${item.variant.name} · `
                               : ""}
-                            {formatPrice(item.unitPrice)}
+                            {formatPrice(item.unitPrice, item.product.currency)}
                           </p>
+                          {item.line.quantity >
+                            (item.variant?.inventoryQuantity ??
+                              item.product.inventoryQuantity) && (
+                            <p className="mt-1 text-xs text-rose-700">
+                              Stock changed. Reduce quantity to continue.
+                            </p>
+                          )}
                           <div className="mt-3 inline-flex items-center rounded-full border border-[#e4e0d7]">
                             <button
                               aria-label={`Remove one ${item.product.name}`}
@@ -854,6 +910,11 @@ export default function Home() {
                             <button
                               aria-label={`Add one ${item.product.name}`}
                               className="grid h-7 w-8 place-items-center text-[#55534b] hover:text-[#b7724d]"
+                              disabled={
+                                item.line.quantity >=
+                                (item.variant?.inventoryQuantity ??
+                                  item.product.inventoryQuantity)
+                              }
                               onClick={() => changeQuantity(item.key, 1)}
                               type="button"
                             >
@@ -862,7 +923,10 @@ export default function Home() {
                           </div>
                         </div>
                         <p className="shrink-0 text-xs font-semibold text-[#34332c]">
-                          {formatPrice(item.unitPrice * item.line.quantity)}
+                          {formatPrice(
+                            item.unitPrice * item.line.quantity,
+                            item.product.currency,
+                          )}
                         </p>
                       </div>
                     </div>
@@ -872,9 +936,23 @@ export default function Home() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-[#77756e]">Subtotal</span>
                     <span className="font-semibold text-[#34332c]">
-                      {formatPrice(subtotal)}
+                      {cartCurrency
+                        ? formatPrice(subtotal, cartCurrency)
+                        : "Mixed currencies"}
                     </span>
                   </div>
+                  {cartCurrency !== "NGN" && (
+                    <p className="mt-2 text-xs leading-5 text-rose-700">
+                      {cartCurrency
+                        ? "Paystack checkout currently supports NGN products only."
+                        : "A single order cannot combine products in different currencies."}
+                    </p>
+                  )}
+                  {hasUnavailableCartItems && (
+                    <p className="mt-2 text-xs leading-5 text-rose-700">
+                      Some quantities exceed current stock. Reduce them to continue.
+                    </p>
+                  )}
                   <p className="mt-2 text-xs leading-5 text-[#8a867c]">
                     Delivery charges are not included. Payment is securely
                     processed by Paystack.
@@ -975,7 +1053,11 @@ export default function Home() {
                     <button
                       className="w-full rounded-full bg-[#263b30] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#395443] disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={
-                        submittingCheckout || !storeSlug || !cartItems.length
+                        submittingCheckout ||
+                        !storeSlug ||
+                        !cartItems.length ||
+                        cartCurrency !== "NGN" ||
+                        hasUnavailableCartItems
                       }
                       type="submit"
                     >

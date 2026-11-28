@@ -64,30 +64,25 @@ It serves as the single source of truth for what should be built now versus late
 4. Basic staff invitation (Owner can add staff)
 5. Role-based access (Owner vs Staff)
 
-#### 3. Core Catalog
-1. Categories
-2. Products (with variants: size, color, etc.)
-3. Inventory management (stock quantity)
-4. Product images via Cloudinary
-5. **Bulk CSV / Excel upload** (with validation + error report)
-6. Sample / mock product data for testing
+#### 
+
 
 #### 4. Orders & Checkout
-1. Cart (storefront)
-2. Checkout flow
-3. Order creation & status management
-4. Paystack integration (initialize + verify payments)
-5. Order confirmation emails
-6. Basic SMS notifications (order placed / paid)
+1. Cart (storefront) uses available products and variants from the imported catalog
+2. Checkout uses the imported product prices and currency, and validates stock against current catalog quantities
+3. Order creation records the purchased products, variants, quantities, and prices; order status follows the actual order/payment lifecycle
+4. Paystack integration (initialize + verify payments) uses the checkout amount and currency
+5. Order confirmation emails are sent for actual orders, not when products are imported
+6. Basic SMS notifications (order placed / paid) are triggered by actual order and payment events
 
 #### 5. Admin Experience
-1. Dashboard overview (sales, orders, low stock)
-2. Products list + create/edit
-3. Orders list + order detail
-4. Customers list (basic)
-5. Discounts / Coupons
-6. Basic analytics (revenue, orders, top products)
-7. Store settings (logo, currency, basic info)
+1. Dashboard overview with imported-catalog product counts and low-stock inventory; sales and order totals come from actual transactions
+2. Product catalog reflects the imported CSV / Excel data: products, categories, variants, images, prices, currency, status, and stock
+3. Orders list + order detail from actual customer orders; product imports do not create order history
+4. Customers list (basic), based on actual customer records; product imports do not create customers
+5. Discounts / Coupons managed independently of product imports
+6. Basic analytics: product rankings and inventory from the active imported catalog; revenue and order metrics from actual transactions
+7. Store settings (logo, currency, basic info); imported product currency applies to catalog entries and does not imply store-setting changes
 
 #### 6. Delivery (Basic)
 1. Delivery zones (e.g. Lagos, Abuja, Other States)
